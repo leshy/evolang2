@@ -62,6 +62,20 @@ class e(object):
             return self.needs[self.children.index(child)]
 
 
+    def needs_fun(self):
+        if object.__getattribute__(self, "output") == undefined:
+            if self.parent:
+                if not self._search:
+                    self._search = True
+                    _needs = map(lambda x: self.parent.expects(self) if x == undefined else x,object.__getattribute__(self, "needs"))
+                    self._search = False
+                    return _needs
+                else:
+                    self._search = False                    
+                    raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
+
+
+
 
     def __getattribute__(self,name):
         if name == "needs":
