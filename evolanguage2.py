@@ -54,7 +54,7 @@ class e(object):
          
 
     def __setattr__(self,name,value):
-        print "##SET##",name,value
+#        print "##SET##",name,value
         self.__dict__[name] = value
 
     def expects(self,child):
@@ -75,26 +75,17 @@ class e(object):
                     raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
 
 
-
-
+    def output_fun(self):
+        if object.__getattribute__(self, "output") == undefined:
+            if self.parent:
+                return self.parent.expects(self)
+                
     def __getattribute__(self,name):
-        if name == "needs":
-            if object.__getattribute__(self, "output") == undefined:
-                if self.parent:
-                    if not self._search:
-                        self._search = True
-                        _needs = map(lambda x: self.parent.expects(self) if x == undefined else x,object.__getattribute__(self, "needs"))
-                        self._search = False
-                        return _needs
-                    else:
-                        self._search = False                    
-                        raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
-
-        if name == "output":
-            if object.__getattribute__(self, "output") == undefined:
-                if self.parent:
-                    return self.parent.expects(self)
-
+        if name + "_fun" in dir(object):
+            fun = getattr(object, name + "_fun")
+            if callable(fun):
+                return fun()
+        
         return object.__getattribute__(self, name)
 
     def evaluate(self,*argv):
@@ -142,8 +133,8 @@ class def_int_variable(e,object):
     
     def env(self):
         env = []
-        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self) + " " + str(self.value) } ))
-        env.append( type ('call_int_variable',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value) } ))
+#        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self) + " " + str(self.value) } ))
+#        env.append( type ('call_int_variable',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value) } ))
 
         return env
 
