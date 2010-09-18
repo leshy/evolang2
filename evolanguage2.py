@@ -54,7 +54,7 @@ class e(object):
          
 
     def __setattr__(self,name,value):
-#        print "##SET##",name,value
+#        print ">> setattr",self,name,value
         self.__dict__[name] = value
 
     def expects(self,child):
@@ -69,28 +69,40 @@ class e(object):
                     self._search = True
                     _needs = map(lambda x: self.parent.expects(self) if x == undefined else x,object.__getattribute__(self, "needs"))
                     self._search = False
+#                    print "RETURNING ",_needs
                     return _needs
                 else:
                     self._search = False                    
                     raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
 
-
+        return object.__getattribute__(self,"needs")
+    
     def output_fun(self):
         if object.__getattribute__(self, "output") == undefined:
             if self.parent:
                 return self.parent.expects(self)
                 
     def __getattribute__(self,name):
-        if name + "_fun" in dir(object):
-            fun = getattr(object, name + "_fun")
-            if callable(fun):
-                return fun()
+#        print "getattr",self,name
+
+#        if name[:2] != "__":
+#            print ">> getattr",self,name
         
+        if name[:2] != "__" and name + "_fun" in dir(self):
+#            print "WIN " + name
+            fun = object.__getattribute__(self,name + "_fun")
+            if callable(fun):
+#                print "CALL", fun, fun()
+                return fun()
         return object.__getattribute__(self, name)
+
 
     def evaluate(self,*argv):
         print "evaluate " + str(self)
         return self.operation(*self.children)
+
+    def env(self):
+        return []
 
     def grow(self):
         if not self.needs:
