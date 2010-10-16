@@ -1,8 +1,117 @@
+#test
 #!/usr/bin/python
-
 import random
 #import psyco
+
 #psyco.full()
+
+
+
+import ubigraph
+
+G = ubigraph.Ubigraph('http://10.0.0.5:20738/RPC2')
+#G = ubigraph.Ubigraph('http://localhost:20738/RPC2')
+G.clear()
+
+normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="0.5")
+#normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
+#normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
+
+#normaledge = G.newEdgeStyle(arrow="true",color="#cccccc",arrow_radius="0.3",arrow_position="0.0")
+
+#normaledge = G.newEdgeStyle(spline="true")
+
+normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed",color="#ffffff")
+
+
+
+
+
+
+class hooklist(list,object):
+    
+    def __init__(self,*argv):
+        self.hook_add = []
+        self.hook_remove = []
+
+
+        list.__init__(self,*argv)
+
+#        if len(argv > 0):
+#            map( lambda entry: map (lambda fun: fun(entry) , self.hook_add),argv[1])
+        
+
+
+    def __setitem__(self,index,item,*argv):
+        map (lambda fun: fun(self[index]), self.hook_remove)
+        list.__setitem__(self,index,item,*argv)
+        map (lambda fun: fun(self[index]), self.hook_add)
+
+    def __delitem__(self,index,*argv):
+        list.__delitem__(self,index,*argv)
+        map (lambda fun: fun(self[index]), self.hook_remove)
+        
+    def append(self,item,*argv):
+        list.append(self,item,*argv)
+        map (lambda fun: fun(item), self.hook_add)
+
+
+class Children(hooklist,object):
+    def __init__(self,*argv):
+        hooklist.__init__(self,*argv)
+        
+
+
+
+
+
+class node(object):
+    def __init__(self):
+        self.parent = None
+        self.id = None
+        self.drawing = False
+        self.children = hooklist()
+
+        self.children.hook_add.append(lambda child: child.__dict__.__setitem__("parent",self))
+        self.children.hook_remove.append(lambda child: child.__dict__.__setitem__("parent",None))
+
+
+
+
+    def draw(self):
+        if self.drawing:
+            return None
+        
+        self.drawing = True
+            
+        if not self.id:
+            self.id = G.newVertex(style=normalvertex, label=str(self._repr()))
+#            self.id = G.newVertex(style=normalvertex)
+        map (lambda vertexid: G.newEdge(self.id,vertexid,style=normaledge  ) if vertexid != None else None ,map(lambda child: child.draw(),self.children))
+            
+        self.drawing = False
+            
+        return self.id
+        
+
+
+
+def test():
+    a = node()
+    b = node()
+    c = node()
+
+
+    a.children.append(b)
+    a.children.append(c)
+    
+    a.draw()
+
+    
+
+
+
+
 
 class t(set,object):
     def __init__(self,name,*attr):
@@ -23,20 +132,34 @@ class t(set,object):
         return self.name + " type"
 
 
+class Env(object):
+    def __init__(self,*argv):
+        pass
+
+    def gimme(self,type):
+        pass
+
+    def __add__(self,env):
+        return self
+
+    
+
 boolean = t('boolean')
 integer = t('integer')
 undefined = t('undefined')
-type_ender = t('ender')
 context = t('context')
 ender = t('ender')
 type_any = t('any')
 
 
-class e(object):    
+class e(node,object):    
     def __init__(self):
         self._search = False
         self.parent = None
-        self.children = []
+
+        node.__init__(self)
+
+        
 
 #        self.transparent = True
 #        self.needs = [boolean,undefined,undefined]
@@ -63,13 +186,12 @@ class e(object):
 
 
     def needs_fun(self):
-        if object.__getattribute__(self, "output") == undefined:
+        if object.__getattribute__(self, "output") == type_any:
             if self.parent:
                 if not self._search:
                     self._search = True
                     _needs = map(lambda x: self.parent.expects(self) if x == undefined else x,object.__getattribute__(self, "needs"))
                     self._search = False
-#                    print "RETURNING ",_needs
                     return _needs
                 else:
                     self._search = False                    
@@ -83,42 +205,52 @@ class e(object):
                 return self.parent.expects(self)
                 
     def __getattribute__(self,name):
-#        print "getattr",self,name
-
-#        if name[:2] != "__":
-#            print ">> getattr",self,name
-        
         if name[:2] != "__" and name + "_fun" in dir(self):
-#            print "WIN " + name
             fun = object.__getattribute__(self,name + "_fun")
             if callable(fun):
-#                print "CALL", fun, fun()
                 return fun()
         return object.__getattribute__(self, name)
 
 
     def evaluate(self,*argv):
         print "evaluate " + str(self)
+        if len(self.children) < len(self.needs):
+            print "no children!"
+            raise "no children!"
+
         return self.operation(*self.children)
 
     def env(self):
         return []
 
-    def grow(self):
-        if not self.needs:
+    def grow(self,env=None):
+        if not hasattr( self,"needs"):
             return []
+
+        #self.children = map (lambda typ: env.gimme(typ).__call__() , self.needs)
         self.children = map (lambda typ: typ.gimme().__call__() , self.needs)
         map (lambda child: child.__dict__.__setitem__( "parent", self), self.children)
         return self.children
 
+    def growdepth(self,depth=3):
+        if depth > 0:
+            self.grow()
+            map(lambda child:child.growdepth(depth - 1),self.children)
+
+
+    def t(self):
+        res = [self.output]
+        
+        if not self.needs:
+            res.append(ender)
+            
+        return res
 
 
 
-conditional_if = type('conditional_if',(e,object),{'output':undefined, 'needs':[boolean,undefined,undefined], 'operation': (lambda test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
+bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: "t"})
 
-bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: True})
-
-bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: False})
+bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: "f"})
 
 
 bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x > y else False , '_repr': lambda self: ">"})
@@ -145,33 +277,36 @@ class def_int_variable(e,object):
     
     def env(self):
         env = []
-#        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self) + " " + str(self.value) } ))
+#        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self)}))
+
 #        env.append( type ('call_int_variable',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value) } ))
 
         return env
 
+
+conditional_if = type('conditional_if',(e,object),{'output':type_any, '_repr': lambda self: "if", 'needs':[boolean,undefined,undefined], 'operation': (lambda self,test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
+
+
+
+
 class def_fun(e,object):
     def __init__(self):
         self.output = undefined
-        self.needs = [ type_any, undefined]
+        self.needs = [ type_any, undefined ]
         
     def operation(self):
-        return self.value
+        self.children[0].evaluate()
 
     def _repr(self):
         return "var " + str(self) + " " + str(self.value)
     
     def env(self):
         env = []
-        env.append( type ('call_fun',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value)}))
+        env.append( type ('call_fun',(e,object),{'output': undefined,'output_fun': lambda s: self.children[1].output , 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value)}))
         
         return env
 
     
-
-
-
-function_def = type('function_def',(e,object),{'output':undefined,'_init': lambda self: self.__dict__.__setitem__('value',random.randrange(-100,100)), 'operation': lambda self: self.value, '_repr': lambda self: str(self.value)})
 
 
 int_abs = type('int_abs', (e,object), {'needs' : [integer], 'output' : integer, 'operation' : lambda self,x: abs(x.evaluate()), '_repr': lambda self: 'abs'})
@@ -191,22 +326,23 @@ type_any.update(integer)
 
 
 typesorter = {}
-typesorter[lambda (x): True if not x.needs else False] = type_ender
+typesorter[lambda (x): True if not x.needs else False] = ender
 
 # win
 map (lambda o: o.output.add(o) and map(lambda check: typesorter[check].add(o) if check(o) else False, typesorter), type_any)
 
 
+
 a = int_abs()
 b = conditional_if()
 
+a.children.append(b)
 
-a.children = [b]
-b.parent = a
 
-print b.needs
+b.growdepth(3)
 
-b.grow()
+#a.draw()
+
 
 print b.children
-
+#print a.evaluate()
