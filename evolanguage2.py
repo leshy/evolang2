@@ -1,47 +1,31 @@
-#test
 #!/usr/bin/python
 import random
 #import psyco
-
 #psyco.full()
 
+#import ubigraph
 
-
-import ubigraph
-
-G = ubigraph.Ubigraph('http://10.0.0.5:20738/RPC2')
+#G = ubigraph.Ubigraph('http://10.0.0.5:20738/RPC2')
 #G = ubigraph.Ubigraph('http://localhost:20738/RPC2')
-G.clear()
+#G.clear()
 
-normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="0.5")
+#normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.5")
+#normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed")
+
 #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
 #normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
-
 #normaledge = G.newEdgeStyle(arrow="true",color="#cccccc",arrow_radius="0.3",arrow_position="0.0")
-
 #normaledge = G.newEdgeStyle(spline="true")
-
-normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed",color="#ffffff")
-
-
-
-
 
 
 class hooklist(list,object):
-    
+
     def __init__(self,*argv):
         self.hook_add = []
         self.hook_remove = []
 
-
         list.__init__(self,*argv)
-
-#        if len(argv > 0):
-#            map( lambda entry: map (lambda fun: fun(entry) , self.hook_add),argv[1])
         
-
-
     def __setitem__(self,index,item,*argv):
         map (lambda fun: fun(self[index]), self.hook_remove)
         list.__setitem__(self,index,item,*argv)
@@ -56,15 +40,6 @@ class hooklist(list,object):
         map (lambda fun: fun(item), self.hook_add)
 
 
-class Children(hooklist,object):
-    def __init__(self,*argv):
-        hooklist.__init__(self,*argv)
-        
-
-
-
-
-
 class node(object):
     def __init__(self):
         self.parent = None
@@ -75,9 +50,6 @@ class node(object):
         self.children.hook_add.append(lambda child: child.__dict__.__setitem__("parent",self))
         self.children.hook_remove.append(lambda child: child.__dict__.__setitem__("parent",None))
 
-
-
-
     def draw(self):
         if self.drawing:
             return None
@@ -86,15 +58,11 @@ class node(object):
             
         if not self.id:
             self.id = G.newVertex(style=normalvertex, label=str(self._repr()))
-#            self.id = G.newVertex(style=normalvertex)
         map (lambda vertexid: G.newEdge(self.id,vertexid,style=normaledge  ) if vertexid != None else None ,map(lambda child: child.draw(),self.children))
-            
-        self.drawing = False
-            
+
+        self.drawing = False            
+
         return self.id
-        
-
-
 
 def test():
     a = node()
@@ -110,19 +78,19 @@ def test():
     
 
 
-
-
-
 class t(set,object):
     def __init__(self,name,*attr):
         set.__init__(self)
         self.name = name
         
-    def gimme(self):
+    def gimme(self,env):
+
+        #map (lambda x: self.add(x) ,(filter(lambda x: x.ismember(self) ,env)))
+        
         if self:
             return random.choice(list(self))
         else:
-            print self.name,": I'm empty, I can't give you anything"
+            print (self.name,": I'm empty, I can't give you anything")
             return undefined
 
     def showset(self):
@@ -133,17 +101,46 @@ class t(set,object):
 
 
 class Env(object):
-    def __init__(self,*argv):
-        pass
+    # environment je takodjer.. svijet u kojem evoluiram kod. kod direktno vezan za grow() funkciju..
+    # isti taj kod utjece i na vlastitu evoluciiju (ili da imam jedan korak ovoga? odluku cu ostaviti evoluciji.)
+    # njegovi pozivi su nesto tipa "howfar" i neighbor i "parent" i slicno. slicno celularnom automatu
+    # rezultati nisu nuzno fiksni nego probabilisticki.
 
-    def gimme(self,type):
-        pass
+    # dal je taj kod vezan za jedinku? rekel bi da da? ali to je potencijalni fail (ovisi o populaciji?) jer jedinka velikog fitnessa moze imati crippleing error u metaevolucijskom kodu, i cijeli gene pool moze umrjeti u dead endu.
 
-    def __add__(self,env):
-        return self
-
+    # dakle metaevolucijski kod i evolucijski kod evoluiraju odvojeno, fitness funkcija metaevolucijskog koda je koliko cesto prouzroci fitness jump evolucijskom kodu. i stvar mora biti arbitrarno chainabilna. neznam ja parametre metaevolucijskog koda. pretpostavio bi da meta-metaevolucijski kod moze pricati i sam o sebi, i o meta-evolucijskom kodu? I GUESS I GUESS.
     
+    def __init__(self,*argv):
+        self.stuff = {}
 
+    def gimme(self,typ):
+        if typ.name in self.stuff:
+#            return self.stuff[typ.name]
+            return random.choice(list(self.stuff[typ.name]))
+        else:
+            raise
+    
+        
+        #    return random.choice(self.stuff[typ])
+
+
+    def push (self,expression):
+        typ = expression.output.name
+        if not self.stuff.has_key(typ):
+            self.stuff[typ] = set()
+            
+        self.stuff[typ].add(expression)
+
+    def __add__(self,alienenv):
+        res = Env()
+        res.stuff = self.stuff
+        for typ in alienenv.stuff.keys():
+            if res.stuff.has_key(typ):
+                res.stuff[typ] = res.stuff[typ].union(alienenv.stuff[typ])
+            else:
+                res.stuff[typ] = alienenv.stuff[typ]
+        return res
+    
 boolean = t('boolean')
 integer = t('integer')
 undefined = t('undefined')
@@ -152,14 +149,13 @@ ender = t('ender')
 type_any = t('any')
 
 
-class e(node,object):    
+class e(node,object):
     def __init__(self):
         self._search = False
         self.parent = None
-
+        self.types = []
+        self.env = Env()
         node.__init__(self)
-
-        
 
 #        self.transparent = True
 #        self.needs = [boolean,undefined,undefined]
@@ -168,18 +164,16 @@ class e(node,object):
 
         if hasattr(self,"_init"):
             self._init()
-    
-#    def __repr__(self):
-#        if self.has_attr("_repr"):
-#            return str(self._repr()) + " " +  str(self) 
-#        else:
-#            return str(self)
-         
+            
 
     def __setattr__(self,name,value):
 #        print ">> setattr",self,name,value
         self.__dict__[name] = value
 
+
+    def who(self):
+        return self.types
+    
     def expects(self,child):
         if child in self.children:
             return self.needs[self.children.index(child)]
@@ -194,7 +188,7 @@ class e(node,object):
                     self._search = False
                     return _needs
                 else:
-                    self._search = False                    
+                    self._search = False
                     raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
 
         return object.__getattribute__(self,"needs")
@@ -213,24 +207,29 @@ class e(node,object):
 
 
     def evaluate(self,*argv):
-        print "evaluate " + str(self)
+        print ("evaluate " + str(self))
         if len(self.children) < len(self.needs):
-            print "no children!"
+            print ("no children!")
             raise "no children!"
 
         return self.operation(*self.children)
 
-    def env(self):
-        return []
+    def env_fun(self):
+        env = object.__getattribute__(self,'env')
+        if self.parent: 
+            env = env + self.parent.env
+        return env
 
-    def grow(self,env=None):
+
+    def grow(self):
         if not hasattr( self,"needs"):
             return []
 
-        #self.children = map (lambda typ: env.gimme(typ).__call__() , self.needs)
-        self.children = map (lambda typ: typ.gimme().__call__() , self.needs)
+        self.children = map (lambda typ: self.env.gimme(typ).__call__() , self.needs)
+#        self.children = map (lambda typ: typ.gimme(None).__call__() , self.needs)
         map (lambda child: child.__dict__.__setitem__( "parent", self), self.children)
         return self.children
+
 
     def growdepth(self,depth=3):
         if depth > 0:
@@ -249,13 +248,10 @@ class e(node,object):
 
 
 bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: "t"})
-
 bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: "f"})
-
 
 bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x > y else False , '_repr': lambda self: ">"})
 bool_smaller = type('boolean_smaller',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x < y else False , '_repr': lambda self: "<"})
-
 bool_equals = type('boolean_equals',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x == y else False , '_repr': lambda self: "="})
 
 
@@ -293,7 +289,7 @@ class def_fun(e,object):
     def __init__(self):
         self.output = undefined
         self.needs = [ type_any, undefined ]
-        
+
     def operation(self):
         self.children[0].evaluate()
 
@@ -303,7 +299,6 @@ class def_fun(e,object):
     def env(self):
         env = []
         env.append( type ('call_fun',(e,object),{'output': undefined,'output_fun': lambda s: self.children[1].output , 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value)}))
-        
         return env
 
     
@@ -316,33 +311,31 @@ int_divide = type('int_divide', (e,object), {'needs' : [integer,integer], 'outpu
 int_multi = type('int_multi', (e,object), {'needs' : [integer,integer], 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() * y.evaluate(), '_repr': lambda self: '*'})
 
 
-root = type('root', (e,object),{'needs': [type_any], 'output' : undefined, 'operation' : lambda self,x: x.evaluate(),'_repr': lambda self: "root"})
-
 map (lambda o: integer.add(o),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,conditional_if])
 map (lambda o: boolean.add(o),[bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if])
 
 type_any.update(boolean)
 type_any.update(integer)
 
-
 typesorter = {}
-typesorter[lambda (x): True if not x.needs else False] = ender
+typesorter[lambda x: True if not x.needs else False] = ender
 
-# win
+# windows
 map (lambda o: o.output.add(o) and map(lambda check: typesorter[check].add(o) if check(o) else False, typesorter), type_any)
 
 
+rootenv = Env()
+map(lambda x: rootenv.push(x),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if])
 
 a = int_abs()
+a.env = rootenv
+
 b = conditional_if()
-
 a.children.append(b)
-
-
-b.growdepth(3)
+b.growdepth(6)
 
 #a.draw()
 
 
-print b.children
+print (b.children)
 #print a.evaluate()

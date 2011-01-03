@@ -15,7 +15,7 @@ class Ubigraph:
     
   def endMultiCall(self):
     for result in self.server():
-      print result
+      print (result)
     self.server = self.server_backup
 
   def newVertex(self, id=None, style=None, color=None, shape=None,
