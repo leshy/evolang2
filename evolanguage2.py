@@ -13,14 +13,24 @@ if ubi:
     G = ubigraph.Ubigraph('http://localhost:20738/RPC2')
     G.clear()
 
-    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.5")
+    #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
+    #normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
+    #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="0.1")
+#    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0")
+    normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#405c71", size="1.0")
+#    normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#777777", size="1.0")
+
 #    normaledge = G.newEdgeStyle(arrow="true",color="#cccccc",arrow_radius="0.3",arrow_position="0.0")
+    blueedge = G.newEdgeStyle(color="#0000ff", fontfamily="Fixed")
+    
+    rededge = G.newEdgeStyle(color="#ff0000", fontfamily="Fixed")
+    greenedge = G.newEdgeStyle(color="#00ff00", fontfamily="Fixed")
     normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed")
+#    normaledge = G.newEdgeStyle(spline="true")
 
-#normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
-#normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
 
-#normaledge = G.newEdgeStyle(spline="true")
+
+
 
 
 
@@ -30,7 +40,9 @@ class node(object):
         self.id = None
         self.breadchrumb = False
         self.children = []
-
+        if not hasattr(self,"linkdata"):
+            self.linkdata = {}
+        
     def depthfirst_reduce(self,f,d):
         if self.breadchrumb:
             return d
@@ -40,12 +52,20 @@ class node(object):
             self.breadchrumb = False
             return res
 
-
-    def addchild(self,child):
+    def addchild(self,child,linkdata = {}):
         self.children.append(child)
+        self.linkdata[self.children.index(child)] = linkdata
         child.parent = self
 
-        
+    def setlink(self,child,linkdata):
+        self.linkdata[child] = linkdata
+
+    def getlink(self,child):
+        try:
+            return self.linkdata[self.children.index(child)]
+        except:
+            return {}
+            
     def draw(self):
         if self.breadchrumb:
             return None        
@@ -53,7 +73,15 @@ class node(object):
         
         if not self.id:
             self.id = G.newVertex(style=normalvertex, label=str(self._repr()))
-        map (lambda vertexid: G.newEdge(self.id,vertexid,style=normaledge  ) if vertexid != None else None ,map(lambda child: child.draw(),self.children))
+
+
+        x = map(lambda child: {"childvertex" : child.draw(), "edge": (self.getlink(child)["edge"] if self.getlink(child).has_key("edge") else normaledge)}, self.children)
+        map(lambda link: G.newEdge(self.id, link["childvertex"], style=link["edge"]) if link["childvertex"] else None,x)
+
+
+
+
+
         
         self.breadchrumb = False
         return self.id
@@ -79,7 +107,6 @@ class t(node,object):
         return random.choice(self.getset())
 
 
-
 class Env(object):
     # environment je takodjer.. svijet u kojem evoluiram kod. kod direktno vezan za grow() funkciju..
     # isti taj kod utjece i na vlastitu evoluciiju (ili da imam jedan korak ovoga? odluku cu ostaviti evoluciji.)
@@ -90,13 +117,33 @@ class Env(object):
 
     # dakle metaevolucijski kod i evolucijski kod evoluiraju odvojeno, fitness funkcija metaevolucijskog koda je koliko cesto prouzroci fitness jump evolucijskom kodu. i stvar mora biti arbitrarno chainabilna. neznam ja parametre metaevolucijskog koda. pretpostavio bi da meta-metaevolucijski kod moze pricati i sam o sebi, i o meta-evolucijskom kodu? I GUESS I GUESS.
     
-    def __init__(self,):
+    def __init__(self):
         self.stuff = {}
         self.expression = None
+
+    def gimme_list(self,typ):
+        if typ in self.stuff.keys():
+            res = list(self.stuff[typ])
+
+        if undefined in self.stuff.keys():
+            res = res + list(self.stuff[undefined])
+        if res:
+            return res
         
+        else:
+            if self.stuff == {}:
+                raise BaseException("my environment is empty.")
+            raise BaseException("expression of this type found in my environment :(")
+
     def gimme(self,typ):
-        if typ in self.stuff:
-            return random.choice(list(self.stuff[typ]))
+        if typ in self.stuff.keys():
+            res = list(self.stuff[typ])
+
+        if undefined in self.stuff.keys():
+            res = res + list(self.stuff[undefined])
+        if res:
+            return random.choice(res)
+        
         else:
             if self.stuff == {}:
                 raise BaseException("my environment is empty.")
@@ -137,14 +184,9 @@ class e(node,object):
         if hasattr(self,"_init"):
             self._init()
             
-
     def __setattr__(self,name,value):
 #        print ">> setattr",self,name,value
         self.__dict__[name] = value
-
-
-    def who(self):
-        return self.types
     
     def expects(self,child):
         if child in self.children:
@@ -187,7 +229,7 @@ class e(node,object):
 
 
     def evaluate(self,*argv):
-        print ("evaluate " + str(self))
+        print ("eval: " + self._repr())
         if len(self.children) < len(self.needs):
 
             raise BaseException("my children are missing.")
@@ -196,7 +238,7 @@ class e(node,object):
 
     def env_fun(self):
         env = object.__getattribute__(self,'env')
-        if self.parent:
+        if hasattr(self,"parent"):
             env = env + self.parent.env
         return env
 
@@ -210,17 +252,44 @@ class e(node,object):
         return self.children
 
 
+
     def growdepth(self,depth=3):
         if depth > 0:
             self.grow()
             map(lambda child: child.growdepth(depth - 1), self.children)
 
 
-    def t(self):
-        res = [self.output]
-        if not self.needs:
-            res.append(ender)
-        return res
+    def showcode(self):
+        if not self.children:
+            print self._repr(),
+        else:
+            print "("  + self._repr(),
+            map(lambda child: child.showcode(), self.children)
+            print  ")",
+
+    def showcode_nice(self,distance=0,First=False):
+        if not self.children:
+            if not First:
+                print  " " * distance,
+            print self._repr()
+        else:
+            if not First:
+                print " " * distance,
+            print "("  + self._repr(),
+
+            First = True
+            for child in self.children:
+                child.showcode_nice(distance + 2 + len(self._repr()),First)
+                if First:
+                    First = False
+
+            print  " " * distance + " )"
+                              
+
+        
+        
+
+    
 
         
 boolean = t('boolean')
@@ -248,14 +317,9 @@ class def_int_variable(e,object):
     def env(self):
         env = []
 #        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self)}))
-
 #        env.append( type ('call_int_variable',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value) } ))
 
         return env
-
-
-conditional_if = type('conditional_if',(e,object),{'output':undefined, '_repr': lambda self: "if", 'needs':[boolean,undefined,undefined], 'operation': (lambda self,test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
-
 
 
 
@@ -266,26 +330,33 @@ class def_fun(e,object):
     def __init__(self):
         self.output = undefined
         self.needs = [ type_any, undefined ]
-#        self.env = Env()
+        self.env = Env()
         self.env.push( type ('call_fun',(e,object),{'output': undefined,'output_fun': lambda s: self.children[1].output , 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value)}))
 
     def operation(self):
-        self.children[0].evaluate()
+        return self.children[0].evaluate()
 
     def _repr(self):
         return "var " + str(self) + " " + str(self.value)
 
 
-bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: "t"})
-bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: "f"})
 
-bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x > y else False , '_repr': lambda self: ">"})
-bool_smaller = type('boolean_smaller',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x < y else False , '_repr': lambda self: "<"})
-bool_equals = type('boolean_equals',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x == y else False , '_repr': lambda self: "="})
+conditional_if = type('conditional_if',(e,object),{'output':undefined, '_repr': lambda self: "if", 'needs':[boolean,undefined,undefined], 'linkdata': {0:{"edge":blueedge},1:{"edge":greenedge},2:{"edge":rededge}}, 'operation': (lambda self,test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
+
+
+
+bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: "T"})
+bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: "F"})
+
+bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() > y.evaluate() else False , '_repr': lambda self: ">"})
+bool_smaller = type('boolean_smaller',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() < y.evaluate() else False , '_repr': lambda self: "<"})
+bool_equals = type('boolean_equals',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() == y.evaluate() else False , '_repr': lambda self: "="})
 
 int_constant = type('int_constant',(e,object),{'output':integer,'_init': lambda self: self.__dict__.__setitem__('value',random.randrange(-100,100)), 'operation': lambda self: self.value, '_repr': lambda self: str(self.value)})
 
-    
+bool_not = type('boolean_not',(e,object),{'output':boolean, 'needs':[boolean], 'linkdata' : {0:{"edge":blueedge}}, 'operation': lambda self,x: not x.evaluate() , '_repr': lambda self: "not"})
+bool_or = type('boolean_or',(e,object),{'output':boolean, 'needs':[boolean,boolean], 'linkdata' : {0:{"edge":blueedge},1:{"edge":blueedge}}, 'operation': lambda self,x,y: x.evaluate() or y.evaluate() , '_repr': lambda self: "or"})
+bool_and = type('boolean_or',(e,object),{'output':boolean, 'needs':[boolean,boolean], 'linkdata' : {0:{"edge":blueedge},1:{"edge":blueedge}},'operation': lambda self,x,y: x.evaluate() and y.evaluate() , '_repr': lambda self: "and"})
 
 
 int_abs = type('int_abs', (e,object), {'needs' : [integer], 'output' : integer, 'operation' : lambda self,x: abs(x.evaluate()), '_repr': lambda self: 'abs'})
@@ -296,7 +367,7 @@ int_multi = type('int_multi', (e,object), {'needs' : [integer,integer], 'output'
 
 
 map (lambda o: integer.add(o),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,conditional_if])
-map (lambda o: boolean.add(o),[bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if])
+map (lambda o: boolean.add(o),[bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if,bool_not,bool_or,bool_and])
 
 
 
@@ -308,15 +379,14 @@ undefined.add(integer)
 
 #map(lambda x: rootenv.push(x),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if,def_fun])
 
-map(lambda x: rootenv.push(x),[int_minus,int_constant,bool_constant_false,bool_larger,conditional_if,def_fun])
+map(lambda x: rootenv.push(x),[conditional_if,int_plus,int_constant,bool_constant_false,bool_larger,bool_constant_true,bool_and,bool_or,bool_not,def_fun])
 
 a = int_abs()
 a.env = rootenv
 
 
 b = conditional_if()
-a.children.append(b)
-b.parent = a
+a.addchild(b)
 
 b.grow()
 b.growdepth(6)
