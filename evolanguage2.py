@@ -201,7 +201,7 @@ class e(node,object):
         self.types = []
         self.env = Env()
         node.__init__(self)
-
+        
 #        self.transparent = True
 #        self.needs = [boolean,undefined,undefined]
 #        self.output = undefined
@@ -356,6 +356,12 @@ class def_var(e,object):
         return "def"
 
 
+
+#problem sa nepoznatim tipom funkcijskog poziva:
+#mogao bi inzistirati na tome da prvo raste function body, sto ce nakon prvog node-a definirati tip funkcije, i call ce postati availiable u environmentu, tj biti dodan u environment u tom trenutku, sto znaci da bi trebao nekako hookati addchild od def_fun-a?
+
+#problem sa argumentima u environmentu:
+#mogao bi dozvoliti definiranje razlicitih environmenta za razlicitu djecu, u toj varijanti djete pita parenta za svoj environment
 
 class def_fun(e,object):
     output = undefined
