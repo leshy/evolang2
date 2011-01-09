@@ -16,17 +16,17 @@ if ubi:
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="0.1")
-#    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0")
-    normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#405c71", size="1.0")
+    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0")
+#    normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#405c71", size="1.0")
 #    normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#777777", size="1.0")
 
 #    normaledge = G.newEdgeStyle(arrow="true",color="#cccccc",arrow_radius="0.3",arrow_position="0.0")
-    blueedge = G.newEdgeStyle(color="#0000ff", fontfamily="Fixed")
-    
+    blueedge = G.newEdgeStyle(color="#0000ff", fontfamily="Fixed")    
     rededge = G.newEdgeStyle(color="#ff0000", fontfamily="Fixed")
     greenedge = G.newEdgeStyle(color="#00ff00", fontfamily="Fixed")
     normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed")
-#    normaledge = G.newEdgeStyle(spline="true")
+    defedge = G.newEdgeStyle(color="#ffff00")
+    calledge = G.newEdgeStyle(spline="true", color="#00ffff",stroke="dashed",strength=0.2)
 
 
 
@@ -38,18 +38,35 @@ class node(object):
     def __init__(self):
         self.parent = None
         self.id = None
-        self.breadchrumb = False
+        self.breadchrumbs = []
         self.children = []
         if not hasattr(self,"linkdata"):
             self.linkdata = {}
+
+
+    def has_breadchrumb(self,breadchrumb):
+        return breadchrumb in self.breadchrumbs
+    
+    def get_breadchrumb(self):
+        return random.random()
+
+    def add_breadchrumb(self,breadchrumb):
+        self.breadchrumbs.append(breadchrumb)
+
+    def del_breadchrumb(self,breadchrumb):
+        self.breadchrumbs.remove(breadchrumb)
+
         
-    def depthfirst_reduce(self,f,d):
-        if self.breadchrumb:
+    def depthfirst_reduce(self,f,d,breadchrumb = None):
+        if not breadchrumb:
+            breadchrumb = self.get_breadchrumb()
+            
+        if self.has_breadchrumb(breadchrumb):
             return d
         else:
-            self.breadchrumb = True
-            res = reduce ( lambda d, child: child.depthfirst_reduce(f,d), self.children, d)
-            self.breadchrumb = False
+            self.add_breadchrumb(breadchrumb)
+            res = reduce ( lambda d, child: child.depthfirst_reduce(f,d,breadchrumb), self.children, d)
+            self.del_breadchrumb(breadchrumb)
             return res
 
     def addchild(self,child,linkdata = {}):
@@ -66,24 +83,24 @@ class node(object):
         except:
             return {}
             
-    def draw(self):
-        if self.breadchrumb:
-            return None        
-        self.breadchrumb = True
-        
+    def draw(self,breadchrumb=None):
+        if not breadchrumb:
+            breadchrumb = self.get_breadchrumb()
+            
+        if self.has_breadchrumb(breadchrumb):
+            return None
+        self.add_breadchrumb(breadchrumb)
+
         if not self.id:
             self.id = G.newVertex(style=normalvertex, label=str(self._repr()))
 
-
-        x = map(lambda child: {"childvertex" : child.draw(), "edge": (self.getlink(child)["edge"] if self.getlink(child).has_key("edge") else normaledge)}, self.children)
+        x = map(lambda child: {"childvertex" : child.draw(breadchrumb), "edge": (self.getlink(child)["edge"] if self.getlink(child).has_key("edge") else normaledge)}, self.children)
         map(lambda link: G.newEdge(self.id, link["childvertex"], style=link["edge"]) if link["childvertex"] else None,x)
 
-
-
-
-
-        
-        self.breadchrumb = False
+        if hasattr(self,"drawpatch"):
+            self.drawpatch()
+            
+        self.del_breadchrumb(breadchrumb)
         return self.id
     
 
@@ -136,6 +153,15 @@ class Env(object):
             raise BaseException("expression of this type found in my environment :(")
 
     def gimme(self,typ):
+        print "growing",typ
+
+        if typ == type_any:
+            res = []
+            for t in self.stuff.keys():
+                res = res + list(self.stuff[t])
+            return random.choice(res)
+
+        
         if typ in self.stuff.keys():
             res = list(self.stuff[typ])
 
@@ -193,16 +219,20 @@ class e(node,object):
             return self.needs[self.children.index(child)]
 
 
-    def needs_fun(self):
+    def needs_fun(self,breadchrumb = None):
+        
         if object.__getattribute__(self, "output") == undefined:
             if self.parent:
-                if not self.breadchrumb:
-                    self.breadchrumb = True
+                if not breadchrumb:
+                    breadchrumb = self.get_breadchrumb()
+                    
+                if not self.has_breadchrumb(breadchrumb):
+                    self.add_breadchrumb(breadchrumb)
                     _needs = map(lambda x: self.parent.expects(self) if x == undefined else x, object.__getattribute__(self, "needs"))
-                    self.breadchrumb = False
+                    self.del_breadchrumb(breadchrumb)
                     return _needs
                 else:
-                    self.breadchrumb = False
+                    self.del_breadchrumb(breadchrumb)
                     raise AttributeError ("unable to define my need, I'm pulling my leg, wtf.")
 
         try:
@@ -231,14 +261,13 @@ class e(node,object):
     def evaluate(self,*argv):
         print ("eval: " + self._repr())
         if len(self.children) < len(self.needs):
-
             raise BaseException("my children are missing.")
 
         return self.operation(*self.children)
 
     def env_fun(self):
         env = object.__getattribute__(self,'env')
-        if hasattr(self,"parent"):
+        if self.parent:
             env = env + self.parent.env
         return env
 
@@ -301,43 +330,56 @@ type_any = t('any')
 
 
 
-class def_int_variable(e,object):
+class def_var(e,object):
+    output = undefined
+    needs = [ ender, undefined ]
+    linkdata = {0:{"edge": defedge}}
+    
     def __init__(self):
-        self.output = undefined
-        self.needs = [ender,undefined]
+        e.__init__(self)
         
-    def operation(self):
-        return self.value
+        self.output = undefined
+        self.needs = [ type_any, undefined ]
+
+
+        def drawpatch (s):                
+            G.newEdge(s.id, self.id, style=calledge)
+
+        
+        self.env.push( type ('get_var',(e,object),{'output': undefined, "needs": [], 'output_fun': lambda s: self.children[1].output , 'drawpatch': drawpatch,  'operation': lambda s: self.evaluate(), '_repr': lambda self: "call" }))
+
+
+    def operation(self,body,nextexp):
+        return nextexp.evaluate()
 
     def _repr(self):
-        return "var " + str(self) + " " + str(self.value)
-
-    
-    
-    def env(self):
-        env = []
-#        env.append( type ('set_int_variable',(e,object),{'output':undefined, 'needs':[undefined,integer], 'operation': lambda s,x,y: self.value = y and x , '_repr': lambda self: "set int var" + str(self)}))
-#        env.append( type ('call_int_variable',(e,object),{'output':integer, 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value) } ))
-
-        return env
+        return "def"
 
 
 
 class def_fun(e,object):
     output = undefined
     needs = [ type_any, undefined ]
-
+    linkdata = {0:{"edge": defedge}}
+    
     def __init__(self):
+        e.__init__(self)
+        
         self.output = undefined
         self.needs = [ type_any, undefined ]
-        self.env = Env()
-        self.env.push( type ('call_fun',(e,object),{'output': undefined,'output_fun': lambda s: self.children[1].output , 'operation': lambda s: self.evaluate(), '_repr': lambda self: "call int var" + str(self) + " " + str(self.value)}))
 
-    def operation(self):
-        return self.children[0].evaluate()
+
+        def drawpatch (s):                
+            G.newEdge(s.id, self.id, style=calledge)
+        
+        self.env.push( type ('call_fun',(e,object),{'output': undefined, "needs": [], 'output_fun': lambda s: self.children[1].output , 'drawpatch': drawpatch,  'operation': lambda s: self.evaluate(), '_repr': lambda self: "call" }))
+
+
+    def operation(self,body,nextexp):
+        return nextexp.evaluate()
 
     def _repr(self):
-        return "var " + str(self) + " " + str(self.value)
+        return "def"
 
 
 
@@ -377,9 +419,12 @@ undefined.add(boolean)
 undefined.add(integer)
 
 
-#map(lambda x: rootenv.push(x),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if,def_fun])
+map(lambda x: rootenv.push(x),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if,def_fun])
 
-map(lambda x: rootenv.push(x),[conditional_if,int_plus,int_constant,bool_constant_false,bool_larger,bool_constant_true,bool_and,bool_or,bool_not,def_fun])
+#map(lambda x: rootenv.push(x),[conditional_if,int_plus,int_constant,bool_constant_false,bool_larger,bool_constant_true,bool_and,bool_or,bool_not,def_fun])
+#map(lambda x: rootenv.push(x),[int_plus,int_constant,bool_constant_false,bool_larger,bool_constant_true,bool_and,bool_or,bool_not,def_fun])
+
+#map(lambda x: rootenv.push(x),[int_plus,int_constant,bool_constant_false,bool_constant_true,bool_not,def_fun])
 
 a = int_abs()
 a.env = rootenv
