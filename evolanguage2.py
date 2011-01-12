@@ -4,6 +4,8 @@ import random
 #import psyco
 #psyco.full()
 
+from node import *
+
 ubi = True
 
 if ubi:
@@ -29,80 +31,14 @@ if ubi:
     calledge = G.newEdgeStyle(spline="true", color="#00ffff",stroke="dashed",strength=0.2)
 
 
+#buildneeds = lambda needs:
+def buildneeds(needs):
+    ret = {}
+    for index,need in zip(range(len(needs)),needs):
+        ret[index] = {'needs':need}
+    return ret
 
 
-
-
-
-class node(object):
-    def __init__(self):
-        self.parent = None
-        self.id = None
-        self.breadchrumbs = []
-        self.children = []
-        if not hasattr(self,"linkdata"):
-            self.linkdata = {}
-
-
-    def has_breadchrumb(self,breadchrumb):
-        return breadchrumb in self.breadchrumbs
-    
-    def get_breadchrumb(self):
-        return random.random()
-
-    def add_breadchrumb(self,breadchrumb):
-        self.breadchrumbs.append(breadchrumb)
-
-    def del_breadchrumb(self,breadchrumb):
-        self.breadchrumbs.remove(breadchrumb)
-
-        
-    def depthfirst_reduce(self,f,d,breadchrumb = None):
-        if not breadchrumb:
-            breadchrumb = self.get_breadchrumb()
-            
-        if self.has_breadchrumb(breadchrumb):
-            return d
-        else:
-            self.add_breadchrumb(breadchrumb)
-            res = reduce ( lambda d, child: child.depthfirst_reduce(f,d,breadchrumb), self.children, d)
-            self.del_breadchrumb(breadchrumb)
-            return res
-
-    def addchild(self,child,linkdata = {}):
-        self.children.append(child)
-        self.linkdata[self.children.index(child)] = linkdata
-        child.parent = self
-
-    def setlink(self,child,linkdata):
-        self.linkdata[child] = linkdata
-
-    def getlink(self,child):
-        try:
-            return self.linkdata[self.children.index(child)]
-        except:
-            return {}
-            
-    def draw(self,breadchrumb=None):
-        if not breadchrumb:
-            breadchrumb = self.get_breadchrumb()
-            
-        if self.has_breadchrumb(breadchrumb):
-            return None
-        self.add_breadchrumb(breadchrumb)
-
-        if not self.id:
-            self.id = G.newVertex(style=normalvertex, label=str(self._repr()))
-
-        x = map(lambda child: {"childvertex" : child.draw(breadchrumb), "edge": (self.getlink(child)["edge"] if self.getlink(child).has_key("edge") else normaledge)}, self.children)
-        map(lambda link: G.newEdge(self.id, link["childvertex"], style=link["edge"]) if link["childvertex"] else None,x)
-
-        if hasattr(self,"drawpatch"):
-            self.drawpatch()
-            
-        self.del_breadchrumb(breadchrumb)
-        return self.id
-    
 
 class t(node,object):
     def __init__(self,name):
@@ -195,12 +131,12 @@ class Env(object):
         return res
 
 
-class e(node,object):
+class e(nodeexpression):
     def __init__(self):
         self.parent = None
         self.types = []
         self.env = Env()
-        node.__init__(self)
+        nodeexpression.__init__(self)
         
 #        self.transparent = True
 #        self.needs = [boolean,undefined,undefined]
@@ -216,19 +152,26 @@ class e(node,object):
     
     def expects(self,child):
         if child in self.children:
-            return self.needs[self.children.index(child)]
+            return self.link(child).needs
+
+    def link(self,child):
+        if child in self.children:
+            return self.linkdata[self.children.index(child)]
+        else:
+            raise BaseException("requested child, I don't have it.")
 
 
     def needs_fun(self,breadchrumb = None):
         
-        if object.__getattribute__(self, "output") == undefined:
+        if object.__getattribute__(self, "output") == transparent:
             if self.parent:
                 if not breadchrumb:
                     breadchrumb = self.get_breadchrumb()
                     
                 if not self.has_breadchrumb(breadchrumb):
                     self.add_breadchrumb(breadchrumb)
-                    _needs = map(lambda x: self.parent.expects(self) if x == undefined else x, object.__getattribute__(self, "needs"))
+
+                    _needs = map(lambda x: self.parent.expects(self) if x == transparent else x, map (lambda link: link["needs"] ,self.linkdata.values()) )
                     self.del_breadchrumb(breadchrumb)
                     return _needs
                 else:
@@ -242,11 +185,11 @@ class e(node,object):
         
     
     def output_fun(self):
-        if object.__getattribute__(self, "output") == undefined:
+        if object.__getattribute__(self, "output") == transparent:
             if self.parent:
                 return self.parent.expects(self)
             else:
-                return undefined
+                return transparent
 
         return  object.__getattribute__(self, "output")
                 
@@ -327,13 +270,13 @@ undefined = t('undefined')
 context = t('context')
 ender = t('ender')
 type_any = t('any')
-
+transparent = t('transparent')
 
 
 class def_var(e,object):
     output = undefined
-    needs = [ ender, undefined ]
-    linkdata = {0:{"edge": defedge}}
+    linkdata = buildneeds([ender, transparent ])
+    linkdata[0] = {"edge": defedge}
     
     def __init__(self):
         e.__init__(self)
@@ -364,8 +307,8 @@ class def_var(e,object):
 #mogao bi dozvoliti definiranje razlicitih environmenta za razlicitu djecu, u toj varijanti djete pita parenta za svoj environment
 
 class def_fun(e,object):
-    output = undefined
-    needs = [ type_any, undefined ]
+    output = transparent
+    needs = [ type_any, transparent ]
     linkdata = {0:{"edge": defedge}}
     
     def __init__(self):
@@ -389,34 +332,35 @@ class def_fun(e,object):
 
 
 
-conditional_if = type('conditional_if',(e,object),{'output':undefined, '_repr': lambda self: "if", 'needs':[boolean,undefined,undefined], 'linkdata': {0:{"edge":blueedge},1:{"edge":greenedge},2:{"edge":rededge}}, 'operation': (lambda self,test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
+conditional_if = type('conditional_if',(e,object),{'output':transparent, '_repr': lambda self: "if", 'linkdata': {"condition":{"needs": boolean, "edge":blueedge},"if_true":{"needs": transparent, "edge":greenedge},"if_false":{"needs": transparent, "edge":rededge}}, 'operation': (lambda self,test,e1,e2: e1.evaluate() if test.evaluate() else e2.evaluate())})
+
+
 
 
 
 bool_constant_true = type('boolean_true',(e,object),{'output':boolean, 'operation': lambda self: True, '_repr': lambda self: "T"})
 bool_constant_false = type('boolean_false',(e,object),{'output':boolean, 'operation': lambda self: False, '_repr': lambda self: "F"})
 
-bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() > y.evaluate() else False , '_repr': lambda self: ">"})
-bool_smaller = type('boolean_smaller',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() < y.evaluate() else False , '_repr': lambda self: "<"})
-bool_equals = type('boolean_equals',(e,object),{'output':boolean, 'needs':[integer,integer], 'operation': lambda self,x,y: True if x.evaluate() == y.evaluate() else False , '_repr': lambda self: "="})
+bool_larger = type('boolean_larger',(e,object),{'output':boolean, 'linkdata': buildneeds([integer,integer]), 'operation': lambda self,x,y: True if x.evaluate() > y.evaluate() else False , '_repr': lambda self: ">"})
+bool_smaller = type('boolean_smaller',(e,object),{'output':boolean, 'linkdata':buildneeds([integer,integer]), 'operation': lambda self,x,y: True if x.evaluate() < y.evaluate() else False , '_repr': lambda self: "<"})
+bool_equals = type('boolean_equals',(e,object),{'output':boolean,  'linkdata':buildneeds([integer,integer]), 'operation': lambda self,x,y: True if x.evaluate() == y.evaluate() else False , '_repr': lambda self: "="})
 
 int_constant = type('int_constant',(e,object),{'output':integer,'_init': lambda self: self.__dict__.__setitem__('value',random.randrange(-100,100)), 'operation': lambda self: self.value, '_repr': lambda self: str(self.value)})
 
-bool_not = type('boolean_not',(e,object),{'output':boolean, 'needs':[boolean], 'linkdata' : {0:{"edge":blueedge}}, 'operation': lambda self,x: not x.evaluate() , '_repr': lambda self: "not"})
-bool_or = type('boolean_or',(e,object),{'output':boolean, 'needs':[boolean,boolean], 'linkdata' : {0:{"edge":blueedge},1:{"edge":blueedge}}, 'operation': lambda self,x,y: x.evaluate() or y.evaluate() , '_repr': lambda self: "or"})
-bool_and = type('boolean_or',(e,object),{'output':boolean, 'needs':[boolean,boolean], 'linkdata' : {0:{"edge":blueedge},1:{"edge":blueedge}},'operation': lambda self,x,y: x.evaluate() and y.evaluate() , '_repr': lambda self: "and"})
+bool_not = type('boolean_not',(e,object),{'output':boolean, 'linkdata':buildneeds([boolean]), 'operation': lambda self,x: not x.evaluate() , '_repr': lambda self: "not"})
+bool_or = type('boolean_or',(e,object),{'output':boolean, 'linkdata':buildneeds([boolean,boolean]), 'operation': lambda self,x,y: x.evaluate() or y.evaluate() , '_repr': lambda self: "or"})
+bool_and = type('boolean_or',(e,object),{'output':boolean,  'linkdata':buildneeds([boolean,boolean]), 'operation': lambda self,x,y: x.evaluate() and y.evaluate() , '_repr': lambda self: "and"})
 
 
-int_abs = type('int_abs', (e,object), {'needs' : [integer], 'output' : integer, 'operation' : lambda self,x: abs(x.evaluate()), '_repr': lambda self: 'abs'})
-int_plus = type('int_plus', (e,object), {'needs' : [integer,integer], 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() + y.evaluate(), '_repr': lambda self: '+'})
-int_minus = type('int_minus', (e,object), {'needs' : [integer,integer], 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() - y.evaluate(), '_repr': lambda self: '-'})
-int_divide = type('int_divide', (e,object), {'needs' : [integer,integer], 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() / y.evaluate() if (y.evaluate() != 0) else 0, '_repr': lambda self: ':'})
-int_multi = type('int_multi', (e,object), {'needs' : [integer,integer], 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() * y.evaluate(), '_repr': lambda self: '*'})
+int_abs = type('int_abs', (e,object), {'linkdata':buildneeds([integer]), 'output' : integer, 'operation' : lambda self,x: abs(x.evaluate()), '_repr': lambda self: 'abs'})
+int_plus = type('int_plus', (e,object), {'linkdata':buildneeds([integer,integer]), 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() + y.evaluate(), '_repr': lambda self: '+'})
+int_minus = type('int_minus', (e,object), {'linkdata':buildneeds([integer,integer]), 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() - y.evaluate(), '_repr': lambda self: '-'})
+int_divide = type('int_divide', (e,object), {'linkdata':buildneeds([integer,integer]), 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() / y.evaluate() if (y.evaluate() != 0) else 0, '_repr': lambda self: ':'})
+int_multi = type('int_multi', (e,object), {'linkdata':buildneeds([integer,integer]), 'output' : integer, 'operation' : lambda self,x,y: x.evaluate() * y.evaluate(), '_repr': lambda self: '*'})
 
 
 map (lambda o: integer.add(o),[int_abs,int_plus,int_minus,int_divide,int_multi,int_constant,conditional_if])
 map (lambda o: boolean.add(o),[bool_constant_true,bool_constant_false,bool_larger,bool_smaller,bool_equals,conditional_if,bool_not,bool_or,bool_and])
-
 
 
 rootenv = Env()
