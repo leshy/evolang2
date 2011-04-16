@@ -1,121 +1,36 @@
 #!/usr/bin/python2
 import random
+#import psyco
+#psyco.full()
 import types
 import copy
 import time
-import threading
-import math
 
-x = None
-root = None
-
-selectedhook = None
-
-def select(a):
-    global x
-    global root
-    global cursor
-    
-    x = root.depthfirst(lambda x: (x if x.id.id == a else False) if x.id != None else False)
-    print "selected " + str(x)
-    if cursor:
-        cursor(x)
-
-
-def grow(x):
-    x.growdraw(1)
-
-
-def isolate(x):
-    def killkillkill(y):
-        if y.id:
-            y.id.destroy()
-            y.id = None
-
-        return False
-    
-    x.depthfirst_below(killkillkill)
-    
-
-cursor = grow
-
-
-def redraw():
-    def killkillkill(y):
-        if y.id:
-            y.id.destroy()
-            y.id = None
-
-    root.depthfirst(killkillkill)
-    root.draw()
 
 ubi = True
-
 def logx(data):
     print "LOGX " + str(data)
 
 if ubi:
     import ubigraph
-    from SimpleXMLRPCServer import SimpleXMLRPCServer
-
-    ubiserver = "10.0.0.5"
-    #ubiserver = "localhost"    
-    callbackip = "10.0.0.10"
-    #callbackserver = "localhost"
-
-    callbackport = random.randint(20739,20999)
-    print "ubigraph server is " + "http://" + ubiserver + ":20738"
-    print "callback server is " + "http://" + callbackip + ":" + str(callbackport)
-
-    G = ubigraph.Ubigraph('http://' + ubiserver  +':20738/RPC2')
+    #G = ubigraph.Ubigraph('http://10.0.0.5:20738/RPC2')
+    G = ubigraph.Ubigraph('http://localhost:20738/RPC2')
     G.clear()
-    
-    server = SimpleXMLRPCServer(("0.0.0.0", callbackport))
-    #server.register_introspection_functions()
-
-    def myhex(i):
-        return hex(i)[2:]
-    
-    def vertex_callback(v):
-        select(v) 
-        steps = 10
-        for i in range(0,steps):
-            time.sleep(0.01)
-#            color = 191 - ((i / (10 / math.sqrt(191))) * (i / (10 / math.sqrt(191))) )
-#            color = "#" + myhex(64 + int(color)) + "5c71"
-            color = (255 - 92) - (i * (math.sqrt(255 - 92) / steps)) * (i * (math.sqrt(255 - 92) / steps))
-            color = "#40" + myhex(92 + int(color)) + "71"
-            size = str(2 - (i * (1.0 / steps)) *  (i * (1.0 / steps)))
-            #print i, color, size
-            G.ubigraph.set_vertex_attribute(v, "color", color)
-            G.ubigraph.set_vertex_attribute(v, "size", size)
-            
-            
-        G.ubigraph.set_vertex_attribute(v, "color", "#405c71")
-        G.ubigraph.set_vertex_attribute(v, "size", "1.0")
-       
-        return True
-
-    server.register_function(vertex_callback)
-    
-    callbackthread = threading.Thread(target=server.serve_forever)
-    callbackthread.setDaemon(True)
-    callbackthread.start()
 
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="terminus", size="0.5", shape="sphere")
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", shape="sphere")
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="0.1")
-    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0",callback="http://" + callbackip + ":" + str(callbackport) + "/vertex_callback")
+    normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0")
     #normalvertex = G.newVertexStyle(fontcolor="#809c21", fontfamily="Fixed",color="#405c71", size="1.0",shape="sphere")
     #normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#405c71", size="1.0")
     #normalvertex = G.newVertexStyle(fontcolor="#a0bc41", fontfamily="Fixed",color="#777777", size="1.0")
     #normaledge = G.newEdgeStyle(arrow="true",color="#cccccc",arrow_radius="0.3",arrow_position="0.0")
     
-    blueedge = G.newEdgeStyle(color="#6666ff", fontfamily="Fixed",spline="true")    
-    rededge = G.newEdgeStyle(color="#ff6666", fontfamily="Fixed",spline="true")
-    greenedge = G.newEdgeStyle(color="#66ff66", fontfamily="Fixed",spline="true")
-    normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed",spline="true")
-    defedge = G.newEdgeStyle(color="#ffff00",stroke="dashed",spline="true")
+    blueedge = G.newEdgeStyle(color="#0000ff", fontfamily="Fixed")    
+    rededge = G.newEdgeStyle(color="#ff0000", fontfamily="Fixed")
+    greenedge = G.newEdgeStyle(color="#00ff00", fontfamily="Fixed")
+    normaledge = G.newEdgeStyle(fontcolor="#ffffff", fontfamily="Fixed")
+    defedge = G.newEdgeStyle(color="#ffff00",stroke="dashed")
     calledge = G.newEdgeStyle(spline="true", color="#00ffff",stroke="dashed",strength=0.2)
     argedge = G.newEdgeStyle(spline="true", color="#ff00ff",stroke="dashed",strength=0.01)
 
@@ -126,7 +41,7 @@ class node(object):
         self.parent = None
         self.id = None
         self.breadchrumbs = []
-        self.children = {}
+        self.children = []
 
     def has_breadchrumb(self,breadchrumb):
         return breadchrumb in self.breadchrumbs
@@ -139,38 +54,7 @@ class node(object):
 
     def del_breadchrumb(self,breadchrumb):
         self.breadchrumbs.remove(breadchrumb)
-
-    def depthfirst_below(self,f,breadchrumb = None,start=True):
-        if self.has_breadchrumb(breadchrumb):
-            return False
-
-        if not breadchrumb:
-            breadchrumb = self.get_breadchrumb()
-        self.add_breadchrumb(breadchrumb)
-
-        if not start:
-            res = f(self)
-            if res:
-                self.del_breadchrumb(breadchrumb)
-                return res
-
-        if not start:
-            for child in self.children:
-                res = child.depthfirst_below(f,breadchrumb,start=False)
-                if res:
-                    self.del_breadchrumb(breadchrumb)
-                    return res
-
-        if self.parent:
-            res = self.parent.depthfirst_below(f,breadchrumb,start=False)
-            if res:
-                self.del_breadchrumb(breadchrumb)
-                return res
         
-        self.del_breadchrumb(breadchrumb)
-        return False
-        
-
     def depthfirst_reduce(self,f,d,breadchrumb = None):
         if not breadchrumb:
             breadchrumb = self.get_breadchrumb()
@@ -183,34 +67,11 @@ class node(object):
             self.del_breadchrumb(breadchrumb)
             return res
 
-    def depthfirst(self,f,breadchrumb = None):
-        if self.has_breadchrumb(breadchrumb):
-            return False
-        if not breadchrumb:
-            breadchrumb = self.get_breadchrumb()            
-        self.add_breadchrumb(breadchrumb)
-
-        res = f(self)
-        if res:
-            self.del_breadchrumb(breadchrumb)
-            return res
-
-        for child in self.children:
-            res = child.depthfirst(f,breadchrumb)
-            if res:
-                self.del_breadchrumb(breadchrumb)
-                return res
-                    
-        self.del_breadchrumb(breadchrumb)
-        return False
-        
-        
-
-    def addchild(self,child,link=None):
-        self.children[child] = link
+    def addchild(self,child):
+        self.children.append(child)
         child.parent = self
             
-    def draw(self,labels=True,breadchrumb=None,drawn=False):
+    def draw(self,labels=True,breadchrumb=None):
         if not breadchrumb:
             breadchrumb = self.get_breadchrumb()
             
@@ -224,17 +85,14 @@ class node(object):
             else:
                 self.id = G.newVertex(style=normalvertex)
 
-            if hasattr(self,"drawhook"):
-                self.drawhook()
-                
-            drawn = self.id
-            
-        x = filter (lambda x: x, map(lambda child: {"childvertex" : child.draw(labels,breadchrumb,drawn), "edge": self.getedge(child)}, self.children))
+        x = map(lambda child: {"childvertex" : child.draw(labels,breadchrumb), "edge": self.getedge(child)}, self.children)
         map(lambda link: G.newEdge(self.id, link["childvertex"], style=link["edge"]) if link["childvertex"] else None,x)
 
+        if hasattr(self,"drawhook"):
+            self.drawhook()
             
         self.del_breadchrumb(breadchrumb)
-        return drawn
+        return self.id
     
 
 class t(node,object):
@@ -353,38 +211,11 @@ class e(node,object):
     def getedge(self,child):
         link = self.link(child)
         if not link: return normaledge
-
+        
         if link.has_key("edge"): return link["edge"]
-
         if link["type"] == boolean: return blueedge
-
         return normaledge
 
-    def buildlinks_fromneeds(self):
-        if not hasattr(self,"links"):
-            self.links = {}
-        
-
-        try:
-            if self.needs_fun.im_func == e.needs_fun.im_func:
-                needs = object.__getattribute__(self, "needs")
-            else:
-                needs = self.needs
-        except:
-            return
-        
-        if not needs: return
-        
-        if self.links:
-            if len(needs) > len(self.links.keys()):
-                needs = needs[len(self.links.keys()):]
-            else:
-                return
-            
-        for i, need in zip(range(len(needs)),needs):
-            self.links.update ({"child" + str(i) : {"type":need}})
-
-    
     def __setattr__(self,name,value):
 #        print ">> setattr",self,name,value
         self.__dict__[name] = value
@@ -455,18 +286,10 @@ class e(node,object):
 
     def evaluate(self,*argv):
         #print ("eval: " + self._repr())
-        time.sleep(0.4)
-        G.ubigraph.set_vertex_attribute(self.id.id, "color", "#ff0000")
-
         if len(self.children) < len(self.needs):
-            G.ubigraph.set_vertex_attribute(self.id.id, "color", "#0000ff")
-            G.ubigraph.set_vertex_attribute(self.id.id, "size", "2.0")
             raise BaseException("my children are missing.")
 
-        res = self.operation(*self.children)        
-        G.ubigraph.set_vertex_attribute(self.id.id, "color", "#405c71")
-
-        return res
+        return self.operation(*self.children)
 
     def getenv(self,child):
         link = self.link(child)
@@ -594,6 +417,13 @@ class def_var(e,object):
 def e2(node):
     def __init__(self):
         pass
+    
+    
+        
+        
+        
+                      
+
 
 
 
@@ -769,17 +599,16 @@ a.addchild(b)
 c = def_fun()
 b.addchild(c)
 
-root = a
 #b.grow()
 
-root.growdraw(6)
+
 #c.growdepth(4)
 #b.grow()
 #b.growdepth(6)
 
 #c = conditional_if()
-#if ubi:
-#    a.growdraw(1)
+if ubi:
+    a.growdraw(5)
     #a.draw()
 
 
@@ -790,8 +619,9 @@ root.growdraw(6)
 #print a.evaluate()
 
 
-#def ttest():
-#print "grown " + str(a.growdepth(15)) + " nodes."
 
-#cProfile.run('ttest()','cprofile_nopsyco')
-#server.serve_forever()
+#import cProfile
+
+#def foo():
+#    print "grown " + str(a.growdepth(15)) + " nodes."
+#cProfile.run('foo()')

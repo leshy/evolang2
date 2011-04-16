@@ -6,6 +6,7 @@ class Ubigraph:
     self.server_backup = self.server
     self.defaultVertexStyle = VertexStyle(self, None, id=0)
     self.defaultEdgeStyle = EdgeStyle(self, None, id=0)
+    self.ubigraph = self.server.ubigraph
 
   def clear(self):
     self.server.ubigraph.clear()
@@ -20,10 +21,10 @@ class Ubigraph:
 
   def newVertex(self, id=None, style=None, color=None, shape=None,
                 label=None, size=None, fontcolor=None, fontfamily=None,
-                fontsize=None, visible=None):
+                fontsize=None, visible=None,callback=None):
     return Vertex(self, id=id, style=style, color=color, shape=shape,
       label=label, size=size, fontcolor=fontcolor, fontfamily=fontfamily,
-      fontsize=fontsize, visible=visible)
+      fontsize=fontsize, visible=visible,callback=callback)
                 
   def newEdge(self, x, y, id=None, style=None, arrow=None, arrow_position=None,
              arrow_length=None, arrow_radius=None, arrow_reverse=None,
@@ -40,10 +41,10 @@ class Ubigraph:
     
   def newVertexStyle(self, parentStyle=None, id=None, color=None, shape=None,
                 label=None, size=None, fontcolor=None, fontfamily=None,
-                fontsize=None, visible=None):
+                fontsize=None, visible=None,callback=None):
     return VertexStyle(self, parentStyle=parentStyle, id=id,
       color=color, shape=shape, label=label, size=size, fontcolor=fontcolor,
-      fontfamily=fontfamily, fontsize=fontsize, visible=visible)
+      fontfamily=fontfamily, fontsize=fontsize, visible=visible,callback=callback)
 
   def newEdgeStyle(self, parentStyle=None, id=None, arrow=None, 
              arrow_position=None, arrow_length=None, arrow_radius=None, 
@@ -72,10 +73,18 @@ class Vertex:
     else:
       U.server.ubigraph.new_vertex_w_id(id)
       self.id = id
+      
     self.set(style=style, color=color, shape=shape, label=label, 
       size=size, fontcolor=fontcolor, fontfamily=fontfamily, 
       fontsize=fontsize, visible=visible, callback=callback)
 
+  def hide(self):
+    self.U.server.ubigraph.set_vertex_attribute(self.id, "visible", "False")
+    self.visible = False
+  def show(self):
+    self.U.server.ubigraph.set_vertex_attribute(self.id, "visible", "True")
+    self.visible = True
+    
   def set(self, style=None, color=None, shape=None,
       label=None, size=None, fontcolor=None, fontfamily=None, fontsize=None,
       visible=None, callback=None):
@@ -98,6 +107,7 @@ class Vertex:
     if visible != None:
       self.U.server.ubigraph.set_vertex_attribute(self.id, "visible", str(visible))
     if callback != None:
+      print "setting callback on " + str(self.id) + " to " + str(callback)
       self.U.server.ubigraph.set_vertex_attribute(self.id, "callback_left_doubleclick", 
         callback)
 
@@ -179,7 +189,7 @@ class Edge:
 class VertexStyle:
   def __init__(self, U, parentStyle=None, id=None, color=None, shape=None,
                 label=None, size=None, fontcolor=None, fontfamily=None,
-                fontsize=None, visible=None):
+                fontsize=None, visible=None, callback=None):
     self.U = U
     parentStyle2 = parentStyle
     if parentStyle == None:
@@ -195,9 +205,10 @@ class VertexStyle:
     else:
       U.server.ubigraph.new_vertex_style_w_id(id, parentStyle2.id)
       self.id = id
+
     self.set(color=color, shape=shape, label=label, size=size,
       fontcolor=fontcolor, fontfamily=fontfamily, fontsize=fontsize, 
-      visible=visible)
+      visible=visible,callback=callback)
 
   def set(self, color=None, shape=None, label=None, size=None, 
       fontcolor=None, fontfamily=None, fontsize=None, visible=None, 
